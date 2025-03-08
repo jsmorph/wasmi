@@ -18,12 +18,20 @@ const HALT_RESUME_WAT: &str = r#"
         (global $result (mut i32) (i32.const 0)) ;; Will store the result
         
         ;; Call the host function and store its result
-        (func $call_host (export "call_host") (result i32)
+        (func $impure_computation (export "impure_computation") (result i32)
             ;; Get the input value
             global.get $input
             
+            ;; Add 1 to the input before calling the host function
+            i32.const 1
+            i32.add
+            
             ;; Call the host function (this will halt execution)
             call $host_compute
+            
+            ;; Add 1 to the result from the host function
+            i32.const 1
+            i32.add
             
             ;; Store the result
             global.set $result
@@ -76,7 +84,7 @@ fn test_snapshot_halt_resume() {
     let instance = Instance::new(&mut store, &module, &imports).unwrap();
     
     // Get the exported functions
-    let call_host = instance.get_typed_func::<(), i32>(&store, "call_host").unwrap();
+    let impure_computation = instance.get_typed_func::<(), i32>(&store, "impure_computation").unwrap();
     let get_input = instance.get_typed_func::<(), i32>(&store, "get_input").unwrap();
     
     // Get the input value
@@ -84,7 +92,7 @@ fn test_snapshot_halt_resume() {
     println!("Input value: {}", input);
     
     // Call the host function, which should halt execution
-    let call_result = call_host.call(&mut store, ());
+    let call_result = impure_computation.call(&mut store, ());
     
     // Verify that execution was halted
     assert!(call_result.is_err(), "Execution should have been halted");
@@ -127,20 +135,23 @@ fn test_snapshot_halt_resume() {
     match new_store.restore_from_file_with_imports(snapshot_path, &module, &new_imports) {
         Ok(new_instance) => {
             // Get the exported functions from the new instance
-            let new_call_host = new_instance.get_typed_func::<(), i32>(&new_store, "call_host").unwrap();
+            let new_impure_computation = new_instance.get_typed_func::<(), i32>(&new_store, "impure_computation").unwrap();
             let new_get_result = new_instance.get_typed_func::<(), i32>(&new_store, "get_result").unwrap();
             
             // Resume execution from where it was halted
-            let resume_result = new_call_host.call(&mut new_store, ()).unwrap();
+            let resume_result = new_impure_computation.call(&mut new_store, ()).unwrap();
             println!("Resumed execution result: {}", resume_result);
             
-            // Verify that the result matches our pre-computed value
-            assert_eq!(resume_result, computed_result, "Result should match pre-computed value");
+            // The WASM code adds 1 to the result from the host function
+            let expected_result = computed_result + 1;
+            
+            // Verify that the result matches our expected value (pre-computed + 1)
+            assert_eq!(resume_result, expected_result, "Result should match pre-computed value + 1");
             
             // Check the stored result
             let stored_result = new_get_result.call(&mut new_store, ()).unwrap();
             println!("Stored result: {}", stored_result);
-            assert_eq!(stored_result, computed_result, "Stored result should match pre-computed value");
+            assert_eq!(stored_result, expected_result, "Stored result should match pre-computed value + 1");
             
             println!("==============================================");
             println!("Snapshot halt and resume test passed!");
