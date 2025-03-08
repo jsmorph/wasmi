@@ -20,13 +20,19 @@ const HALT_RESUME_WAT: &str = r#"
         (global $result (mut i32) (i32.const 0)) ;; Will store the result
         
         ;; Call the host function and store its result
-        (func $impure_computation (export "impure_computation") (result i32)
+        (func $impure_computation (export "impure_computation") (result i32) (local i32)
             ;; Get the input value
             global.get $input
             
             ;; Add 1 to the input before calling the host function
             i32.const 1
             i32.add
+            
+            ;; Store the incremented value back to the input global
+            (local.set 0)  ;; Store in local 0
+            (local.get 0)  ;; Get it back
+            global.set $input
+            (local.get 0)  ;; Get it again for the host function call
             
             ;; Call the host function (this will halt execution)
             call $host_work
@@ -165,7 +171,13 @@ fn test_snapshot_halt_resume() {
             println!("Stored result: {}", stored_result);
             assert_eq!(stored_result, expected_result, "Stored result should match pre-computed value + 1");
             
-           println!("Snapshot halt and resume test passed");
+            // Check that the input value was preserved in the snapshot
+            let new_get_input = new_instance.get_typed_func::<(), i32>(&new_store, "get_input").unwrap();
+            let restored_input = new_get_input.call(&mut new_store, ()).unwrap();
+            println!("Restored input value: {}", restored_input);
+            assert_eq!(restored_input, 1, "Input value should be preserved as 1 in the snapshot");
+            
+            println!("Snapshot halt and resume test passed");
         }
         Err(SnapshotError::InvalidSnapshot) => {
             // This is expected since the implementation is not complete
