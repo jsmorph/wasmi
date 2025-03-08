@@ -107,6 +107,46 @@ lto = "fat"
 codegen-units = 1
 ```
 
+## Snapshot and Restore Functionality
+
+Wasmi provides the ability to save the state of a running WebAssembly instance to a file and later restore it to continue execution. This is useful for:
+
+- Saving the state of a long-running computation to resume later
+- Creating checkpoints in a WebAssembly application
+- Migrating WebAssembly instances between different processes or machines
+- Debugging WebAssembly applications by examining their state at different points
+
+### Basic Usage
+
+The snapshot and restore functionality is provided through the `StoreSnapshot` trait, which is implemented for `Store<T>`:
+
+```rust
+use wasmi::{Engine, Module, Store, StoreSnapshot, Instance};
+
+// Create a WebAssembly module
+let engine = Engine::default();
+let module = Module::new(&engine, wasm_bytes).unwrap();
+
+// Create a store and instantiate the module
+let mut store = Store::default();
+let instance = Instance::new(&mut store, &module, &[]).unwrap();
+
+// ... Run some WebAssembly code ...
+
+// Save the state to a snapshot file
+store.snapshot_to_file("snapshot.bin").unwrap();
+
+// ... Run more WebAssembly code ...
+
+// Create a new store and restore from the snapshot
+let mut new_store = Store::default();
+let restored_instance = new_store.restore_from_file("snapshot.bin", &module).unwrap();
+
+// Continue execution with the restored instance
+```
+
+For more detailed information about the snapshot and restore functionality, see the [snapshot documentation](./snapshot.md).
+
 ## WebAssembly Optimizations
 
 WebAssembly runtimes are fast because they usually are fed with pre-optimized Wasm binaries.  

@@ -49,6 +49,7 @@ The following list states some of the distinct features of Wasmi.
 - 100% WebAssembly spec testsuite compliance.
 - Built-in support for fuel metering.
 - Supports the official [Wasm C-API](https://github.com/WebAssembly/wasm-c-api).
+- Snapshot and restore functionality to save and resume WebAssembly execution state.
 
 ## Usage
 

@@ -92,6 +92,7 @@ mod limits;
 mod linker;
 mod memory;
 mod module;
+mod snapshot;
 mod store;
 mod table;
 mod value;
@@ -119,6 +120,7 @@ pub mod errors {
         linker::LinkerError,
         memory::MemoryError,
         module::{InstantiationError, ReadError},
+        snapshot::SnapshotError,
         store::FuelError,
         table::TableError,
     };
@@ -168,6 +170,7 @@ pub use self::{
         ModuleImportsIter,
         Read,
     },
+    snapshot::StoreSnapshot,
     store::{AsContext, AsContextMut, CallHook, Store, StoreContext, StoreContextMut},
     table::{Table, TableType},
     value::Val,
