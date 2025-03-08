@@ -7,6 +7,8 @@ use wasmi::{
 };
 use std::fs;
 use std::path::Path;
+use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::Arc;
 
 /// A module that calls a host function and uses its result.
 const HALT_RESUME_WAT: &str = r#"
@@ -66,12 +68,18 @@ fn test_snapshot_halt_resume() {
     let engine = Engine::default();
     let module = Module::new(&engine, HALT_RESUME_WAT).unwrap();
     
-    // Create a store
+    // Create a store with a captured input value
+    let captured_input = Arc::new(AtomicI32::new(0));
     let mut store = Store::new(&engine, ());
     
     // Create a host function that will halt execution by returning an error
-    let host_work = Func::wrap(&mut store, |_caller: Caller<'_, ()>, input: i32| -> Result<i32, Error> {
+    // but first capture the input value for later use
+    let captured_input_clone = captured_input.clone();
+    let host_work = Func::wrap(&mut store, move |_caller: Caller<'_, ()>, input: i32| -> Result<i32, Error> {
         println!("Host function called with input: {}", input);
+        
+        // Capture the input value for later use
+        captured_input_clone.store(input, Ordering::SeqCst);
         
         // Halt execution by returning an error
         Err(Error::new("Execution halted at host function call"))
@@ -113,9 +121,11 @@ fn test_snapshot_halt_resume() {
         }
     }
     
-    // Now, compute the result outside of WASM
+    // Now, compute the result outside of WASM using the captured input value
     // In a real application, this might involve complex computation or external services
-    let computed_result = input * 2; // Simple computation: double the input
+    let host_input = captured_input.load(Ordering::SeqCst);
+    println!("Using captured host function input: {}", host_input);
+    let computed_result = host_input * 2; // Simple computation: double the input
     println!("Host computed result outside of WASM: {}", computed_result);
     
     // Create a new store for restoration
