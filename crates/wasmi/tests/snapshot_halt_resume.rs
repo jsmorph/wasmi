@@ -12,9 +12,9 @@ use std::path::Path;
 const HALT_RESUME_WAT: &str = r#"
     (module
         ;; Import a host function that will halt execution
-        (import "host" "compute" (func $host_compute (param i32) (result i32)))
+        (import "host" "work" (func $host_work (param i32) (result i32)))
         
-        (global $input (mut i32) (i32.const 5))  ;; Initial input value
+        (global $input (mut i32) (i32.const 0))  ;; Initial input value
         (global $result (mut i32) (i32.const 0)) ;; Will store the result
         
         ;; Call the host function and store its result
@@ -27,7 +27,7 @@ const HALT_RESUME_WAT: &str = r#"
             i32.add
             
             ;; Call the host function (this will halt execution)
-            call $host_compute
+            call $host_work
             
             ;; Add 1 to the result from the host function
             i32.const 1
@@ -70,7 +70,7 @@ fn test_snapshot_halt_resume() {
     let mut store = Store::new(&engine, ());
     
     // Create a host function that will halt execution by returning an error
-    let host_compute = Func::wrap(&mut store, |_caller: Caller<'_, ()>, input: i32| -> Result<i32, Error> {
+    let host_work = Func::wrap(&mut store, |_caller: Caller<'_, ()>, input: i32| -> Result<i32, Error> {
         println!("Host function called with input: {}", input);
         
         // Halt execution by returning an error
@@ -78,7 +78,7 @@ fn test_snapshot_halt_resume() {
     });
     
     // Create the imports array with our host function
-    let imports = [Extern::Func(host_compute)];
+    let imports = [Extern::Func(host_work)];
     
     // Instantiate the module with the imports
     let instance = Instance::new(&mut store, &module, &imports).unwrap();
@@ -89,17 +89,18 @@ fn test_snapshot_halt_resume() {
     
     // Get the input value
     let input = get_input.call(&mut store, ()).unwrap();
-    println!("Input value: {}", input);
+    println!("Initial input: {}", input);
     
     // Call the host function, which should halt execution
+    println!("Call WASM impure computation");
     let call_result = impure_computation.call(&mut store, ());
     
     // Verify that execution was halted
     assert!(call_result.is_err(), "Execution should have been halted");
-    println!("Execution halted as expected: {:?}", call_result.err().unwrap());
+    println!("Execution halted at host function as expected: {:?}", call_result.err().unwrap());
     
     // Take a snapshot at this point
-    println!("Taking snapshot at host function call...");
+    println!("Taking snapshot at host function call");
     match store.snapshot_to_file(snapshot_path) {
         Ok(_) => println!("Snapshot created successfully"),
         Err(SnapshotError::InvalidSnapshot) => {
@@ -115,23 +116,24 @@ fn test_snapshot_halt_resume() {
     // Now, compute the result outside of WASM
     // In a real application, this might involve complex computation or external services
     let computed_result = input * 2; // Simple computation: double the input
-    println!("Computed result outside of WASM: {}", computed_result);
+    println!("Host computed result outside of WASM: {}", computed_result);
     
     // Create a new store for restoration
     let mut new_store = Store::new(&engine, ());
     
     // Create a new host function that will provide the pre-computed result
-    let new_host_compute = Func::wrap(&mut new_store, move |_caller: Caller<'_, ()>, input: i32| -> i32 {
-        println!("Resumed execution with input: {}", input);
+    let new_host_work = Func::wrap(&mut new_store, move |_caller: Caller<'_, ()>, input: i32| -> i32 {
+        println!("Resumed execution with host function input: {}", input);
         // Return the pre-computed result
+        println!("Returning pre-computed host function output: {}", computed_result);
         computed_result
     });
     
     // Create the imports array with our new host function
-    let new_imports = [Extern::Func(new_host_compute)];
+    let new_imports = [Extern::Func(new_host_work)];
     
     // Restore from the snapshot with the new host function
-    println!("Restoring from snapshot with pre-computed result...");
+    println!("Restoring from snapshot with pre-computed result");
     match new_store.restore_from_file_with_imports(snapshot_path, &module, &new_imports) {
         Ok(new_instance) => {
             // Get the exported functions from the new instance
@@ -153,9 +155,7 @@ fn test_snapshot_halt_resume() {
             println!("Stored result: {}", stored_result);
             assert_eq!(stored_result, expected_result, "Stored result should match pre-computed value + 1");
             
-            println!("==============================================");
-            println!("Snapshot halt and resume test passed!");
-            println!("==============================================");
+           println!("Snapshot halt and resume test passed");
         }
         Err(SnapshotError::InvalidSnapshot) => {
             // This is expected since the implementation is not complete
