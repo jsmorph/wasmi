@@ -34,7 +34,7 @@ Currently `handle` is really just int &rarr; int. It should probably be JSON &ra
 
 Yes, a WAELI request could be handled by a `handle`r. That's how composition works.
 
-### The WebAssembly Module
+### The Example WebAssembly Module
 
 [The](module.wat) example WebAssembly module exports a function named `handle` that:
 1. Initializes a local variable `acc` to be the integer input to `handle`
