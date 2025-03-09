@@ -21,25 +21,49 @@ use wasmi::{
 /// # Arguments
 ///
 /// * `wat` - The WebAssembly Text format content as a string
+/// * `values` - An array of integers that can be used by the 'waeli' function
 ///
 /// # Returns
 ///
 /// The result of calling the 'handle' function with input 10
-fn continuation(wat: &str) -> Result<i32, Box<dyn std::error::Error>> {
+fn continuation(wat: &str, values: &[i32]) -> Result<i32, Box<dyn std::error::Error>> {
     // Create a new engine and store
     let engine = Engine::default();
-    let mut store = Store::new(&engine, ());
+    // Use a struct to hold our state
+    struct HostState {
+        values: Vec<i32>,
+        call_count: usize,
+    }
+    let host_state = HostState {
+        values: values.to_vec(),
+        call_count: 0,
+    };
+    let mut store = Store::new(&engine, host_state);
     let mut linker = Linker::new(&engine);
 
     // Define the 'waeli' host function
-    // It takes an int as input and returns a random int in the range [0, input]
-    let waeli = Func::wrap(&mut store, |_caller: Caller<()>, input: i32| -> i32 {
+    // It takes an int as input and returns either:
+    // - The value at the nth index of the values array if it exists (where n is the call count)
+    // - A random int in the range [0, input] if no value exists at that index
+    let waeli = Func::wrap(&mut store, |mut caller: Caller<HostState>, input: i32| -> i32 {
         if input <= 0 {
             return 0;
         }
-        let mut rng = rand::thread_rng();
-        let result = rng.gen_range(0..=input);
-        println!("  Host function waeli({}) => {}", input, result);
+        
+        // Get the current call count and increment it
+        let call_count = caller.data().call_count;
+        caller.data_mut().call_count += 1;
+        
+        // Check if we have a value at the current index
+        let (result, source) = if call_count < caller.data().values.len() {
+            (caller.data().values[call_count], "from array")
+        } else {
+            // Fall back to random number if no value exists
+            let mut rng = rand::thread_rng();
+            (rng.gen_range(0..=input), "randomly generated")
+        };
+        
+        println!("  Host function waeli({}) => {} (call #{}, {})", input, result, call_count + 1, source);
         result
     });
 
@@ -72,9 +96,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Loading WebAssembly module...");
     let wat = std::fs::read_to_string("module.wat")?;
     
-    // Call the continuation function with the WAT content
+    // Define some values for the waeli function to use
+    let values = [5]; // Only the first call will use this value, the second call will generate a random number
+    
+    // Call the continuation function with the WAT content and values
     println!("Instantiating module and executing...");
-    let result = continuation(&wat)?;
+    let result = continuation(&wat, &values)?;
     
     // Display the result
     println!("Final result = {}", result);
