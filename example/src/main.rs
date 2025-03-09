@@ -84,7 +84,7 @@ fn continuation(wat: &str, values: &[i32], initial_value: i32, normal: bool) -> 
             result
         })
     } else {
-        // In 'array' mode, use values from the array or halt execution
+        // In 'continuation' mode, use values from the array or halt execution
         Func::wrap(&mut store, |mut caller: Caller<HostState>, input: i32| -> Result<i32, wasmi::Error> {
             // Store the last input
             caller.data_mut().last_input = input;
@@ -176,7 +176,7 @@ struct TraceElement {
 /// * `wat` - The WebAssembly Text format content as a string
 /// * `initial_value` - The initial value to pass to the 'handle' function
 /// * `normal` - If true, runs in 'normal' mode where the 'waeli' host function
-///              always uses the 'waeli' Rust function. If false, runs in 'array' mode.
+///              always uses the 'waeli' Rust function. If false, runs in 'continuation' mode.
 ///
 /// # Returns
 ///
@@ -256,7 +256,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if normal_mode {
         println!("Running module in NORMAL mode with initial value {}...", initial_value);
     } else {
-        println!("Running module in ARRAY mode with initial value {}...", initial_value);
+        println!("Running module in CONTINUATION mode with initial value {}...", initial_value);
     }
     let (result, trace) = run(&wat, initial_value, normal_mode)?;
     
