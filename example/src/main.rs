@@ -10,6 +10,26 @@ use wasmi::{
     Caller, Engine, Extern, Func, Linker, Module, Store
 };
 
+/// Generates a random integer in the range [0, input].
+///
+/// This function encapsulates the random number generation logic used by the 'waeli' host function.
+///
+/// # Arguments
+///
+/// * `input` - The upper bound (inclusive) for the random number
+///
+/// # Returns
+///
+/// A random integer in the range [0, input], or 0 if input <= 0
+fn waeli(input: i32) -> i32 {
+    if input <= 0 {
+        return 0;
+    }
+    
+    let mut rng = rand::thread_rng();
+    rng.gen_range(0..=input)
+}
+
 /// Executes a WebAssembly module with the 'waeli' host function.
 ///
 /// This function:
@@ -23,13 +43,16 @@ use wasmi::{
 /// * `wat` - The WebAssembly Text format content as a string
 /// * `values` - An array of integers that can be used by the 'waeli' function
 /// * `initial_value` - The initial value to pass to the 'handle' function
+/// * `normal` - If true, the 'waeli' host function always uses the 'waeli' Rust function
+///              and execution always completes normally. If false, the array and halting
+///              behavior is used.
 ///
 /// # Returns
 ///
 /// A tuple containing:
 /// - The result of calling the 'handle' function, or -1 if execution was halted
 /// - The last input passed to 'waeli' if execution was halted, or 0 if execution completed normally
-fn continuation(wat: &str, values: &[i32], initial_value: i32) -> Result<(i32, i32), Box<dyn std::error::Error>> {
+fn continuation(wat: &str, values: &[i32], initial_value: i32, normal: bool) -> Result<(i32, i32), Box<dyn std::error::Error>> {
     // Create a new engine and store
     let engine = Engine::default();
     // Use a struct to hold our state
@@ -48,35 +71,46 @@ fn continuation(wat: &str, values: &[i32], initial_value: i32) -> Result<(i32, i
     let mut store = Store::new(&engine, host_state);
     let mut linker = Linker::new(&engine);
 
-    // Define the 'waeli' host function
-    // It takes an int as input and returns either:
-    // - The value at the nth index of the values array if it exists (where n is the call count)
-    // - Halts execution if no value exists at that index
-    let waeli = Func::wrap(&mut store, |mut caller: Caller<HostState>, input: i32| -> Result<i32, wasmi::Error> {
-        // Store the last input
-        caller.data_mut().last_input = input;
-        
-        if input <= 0 {
-            return Ok(0);
-        }
-        
-        // Get the current call count and increment it
-        let call_count = caller.data().call_count;
-        caller.data_mut().call_count += 1;
-        
-        // Check if we have a value at the current index
-        if call_count < caller.data().values.len() {
-            let result = caller.data().values[call_count];
-            println!("  Host function waeli({}) => {} (call #{}, from array)", input, result, call_count + 1);
-            Ok(result)
-        } else {
-            // Halt execution instead of generating a random number
-            println!("  Host function waeli({}) => HALT (call #{}, no value in array)", input, call_count + 1);
-            caller.data_mut().execution_halted = true;
-            // Return a trap to halt execution
-            Err(wasmi::Error::new("Execution halted: no value in array for this call"))
-        }
-    });
+    // Define the 'waeli' host function based on the 'normal' flag
+    let waeli = if normal {
+        // In 'normal' mode, always use the 'waeli' Rust function
+        Func::wrap(&mut store, |mut caller: Caller<HostState>, input: i32| -> i32 {
+            // Store the last input
+            caller.data_mut().last_input = input;
+            
+            // Call the 'waeli' Rust function
+            let result = waeli(input);
+            println!("  Host function waeli({}) => {} (normal mode)", input, result);
+            result
+        })
+    } else {
+        // In 'array' mode, use values from the array or halt execution
+        Func::wrap(&mut store, |mut caller: Caller<HostState>, input: i32| -> Result<i32, wasmi::Error> {
+            // Store the last input
+            caller.data_mut().last_input = input;
+            
+            if input <= 0 {
+                return Ok(0);
+            }
+            
+            // Get the current call count and increment it
+            let call_count = caller.data().call_count;
+            caller.data_mut().call_count += 1;
+            
+            // Check if we have a value at the current index
+            if call_count < caller.data().values.len() {
+                let result = caller.data().values[call_count];
+                println!("  Host function waeli({}) => {} (call #{}, from array)", input, result, call_count + 1);
+                Ok(result)
+            } else {
+                // Halt execution instead of generating a random number
+                println!("  Host function waeli({}) => HALT (call #{}, no value in array)", input, call_count + 1);
+                caller.data_mut().execution_halted = true;
+                // Return a trap to halt execution
+                Err(wasmi::Error::new("Execution halted: no value in array for this call"))
+            }
+        })
+    };
 
     // Register the host function in the linker
     linker.define("env", "waeli", waeli)?;
@@ -141,6 +175,8 @@ struct TraceElement {
 ///
 /// * `wat` - The WebAssembly Text format content as a string
 /// * `initial_value` - The initial value to pass to the 'handle' function
+/// * `normal` - If true, runs in 'normal' mode where the 'waeli' host function
+///              always uses the 'waeli' Rust function. If false, runs in 'array' mode.
 ///
 /// # Returns
 ///
@@ -148,7 +184,7 @@ struct TraceElement {
 /// - The final result of the WebAssembly module execution
 /// - A trace of the execution, with each element containing the previous waeli output
 ///   and the continuation output
-fn run(wat: &str, initial_value: i32) -> Result<(i32, Vec<TraceElement>), Box<dyn std::error::Error>> {
+fn run(wat: &str, initial_value: i32, normal: bool) -> Result<(i32, Vec<TraceElement>), Box<dyn std::error::Error>> {
     let mut values = Vec::new();
     let mut iteration = 0;
     let mut trace = Vec::new();
@@ -159,8 +195,8 @@ fn run(wat: &str, initial_value: i32) -> Result<(i32, Vec<TraceElement>), Box<dy
         println!("\nIteration #{}", iteration);
         println!("Current values array: {:?}", values);
         
-        // Call continuation with the current values and initial value
-        let continuation_output = continuation(wat, &values, initial_value)?;
+        // Call continuation with the current values, initial value, and mode
+        let continuation_output = continuation(wat, &values, initial_value, normal)?;
         let (result, waeli_input) = continuation_output;
         
         // Add to the trace
@@ -175,10 +211,9 @@ fn run(wat: &str, initial_value: i32) -> Result<(i32, Vec<TraceElement>), Box<dy
             return Ok((result, trace));
         }
         
-        // Execution was halted, generate a random value
+        // Execution was halted, generate a random value using the waeli function
         println!("Execution halted with waeli_input: {}", waeli_input);
-        let mut rng = rand::thread_rng();
-        let random_value = rng.gen_range(0..=waeli_input);
+        let random_value = waeli(waeli_input);
         println!("Generated random value: {} (in range [0, {}])", random_value, waeli_input);
         
         // Store this random value for the trace
@@ -210,13 +245,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         10
     };
     
+    // Check if we should run in normal mode
+    let normal_mode = args.len() > 2 && args[2] == "normal";
+    
     // Load the WebAssembly module from the WAT file
     println!("Loading WebAssembly module...");
     let wat = std::fs::read_to_string("module.wat")?;
     
     // Run the module until completion
-    println!("Running module until completion with initial value {}...", initial_value);
-    let (result, trace) = run(&wat, initial_value)?;
+    if normal_mode {
+        println!("Running module in NORMAL mode with initial value {}...", initial_value);
+    } else {
+        println!("Running module in ARRAY mode with initial value {}...", initial_value);
+    }
+    let (result, trace) = run(&wat, initial_value, normal_mode)?;
     
     // Display the final result
     println!("\nFinal result = {}", result);
