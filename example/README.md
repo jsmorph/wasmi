@@ -188,8 +188,6 @@ Trace[0]: (previous_waeli_output: None, continuation_output: (6, 0))
 
 The current implementation of Continuation Mode has a significant computational inefficiency: it exhibits quadratic complexity in terms of the number of steps required to complete execution.
 
-#### Why It's Quadratic
-
 In Continuation Mode, when execution halts at step N because a value is missing:
 
 1. A random value is generated and added to the array
@@ -233,14 +231,6 @@ _Note: I tried to have cline+Sonnet implement this sort of thing.  That experien
 - **Portability**: Different WebAssembly runtimes would require different implementations
 
 The current implementation prioritizes simplicity and clarity over performance, making it suitable for educational purposes and small-scale applications. For production systems with performance requirements, a resumable execution model would be preferable.
-
-## Key Concepts Demonstrated
-
-1. **Host Function Integration**: Defining Rust functions that can be called from WebAssembly
-2. **Execution Control**: Halting and resuming WebAssembly execution
-3. **State Management**: Maintaining state between execution iterations
-4. **Execution Tracing**: Collecting detailed information about the execution process
-5. **Multiple Execution Modes**: Supporting different behaviors through configuration
 
 ## References
 
