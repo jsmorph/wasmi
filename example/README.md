@@ -12,6 +12,7 @@ The example consists of:
 
 - A host environment (Rust) that defines a function named `waeli`
 - A WebAssembly module that imports the `waeli` function and exports a function named `handle`
+- A `continuation` function that encapsulates the WebAssembly execution logic
 
 ### The `waeli` Host Function
 
@@ -44,16 +45,19 @@ The output shows:
 - The result of each call to `waeli`
 - The final result returned by the `handle` function
 
-For example, with input 10:
+For example:
 ```
-Calling handle(10):
+Loading WebAssembly module...
+Instantiating module and executing...
   Initial acc = 10
-  Host function waeli(10) => 10  # First call to waeli returns 10 (even)
-  # acc = 10 + 10 = 20
-  Host function waeli(20) => 20  # Second call to waeli returns 20 (even)
-  # acc = 20 + 20 = 40
-  Final result = 40
+  Host function waeli(10) => 6   # First call to waeli returns 6 (even)
+  # acc = 10 + 6 = 16
+  Host function waeli(16) => 9   # Second call to waeli returns 9 (odd)
+  # acc = 16 - 9 = 7
+Final result = 7
 ```
+
+Note: Since the `waeli` function returns random values, your results will vary each time you run the example.
 
 ## Files
 
