@@ -16,7 +16,7 @@ use wasmi::{
 /// 1. Sets up the wasmi environment with the 'waeli' host function
 /// 2. Loads and instantiates the provided WAT module
 /// 3. Calls the 'handle' function exported by the module with input 10
-/// 4. Returns the result of the 'handle' function
+/// 4. Returns a pair containing the result of the 'handle' function and the last input to 'waeli'
 ///
 /// # Arguments
 ///
@@ -25,18 +25,24 @@ use wasmi::{
 ///
 /// # Returns
 ///
-/// The result of calling the 'handle' function with input 10
-fn continuation(wat: &str, values: &[i32]) -> Result<i32, Box<dyn std::error::Error>> {
+/// A tuple containing:
+/// - The result of calling the 'handle' function with input 10, or -1 if execution was halted
+/// - The last input passed to 'waeli' if execution was halted, or 0 if execution completed normally
+fn continuation(wat: &str, values: &[i32]) -> Result<(i32, i32), Box<dyn std::error::Error>> {
     // Create a new engine and store
     let engine = Engine::default();
     // Use a struct to hold our state
     struct HostState {
         values: Vec<i32>,
         call_count: usize,
+        last_input: i32,
+        execution_halted: bool,
     }
     let host_state = HostState {
         values: values.to_vec(),
         call_count: 0,
+        last_input: 0,
+        execution_halted: false,
     };
     let mut store = Store::new(&engine, host_state);
     let mut linker = Linker::new(&engine);
@@ -44,10 +50,13 @@ fn continuation(wat: &str, values: &[i32]) -> Result<i32, Box<dyn std::error::Er
     // Define the 'waeli' host function
     // It takes an int as input and returns either:
     // - The value at the nth index of the values array if it exists (where n is the call count)
-    // - A random int in the range [0, input] if no value exists at that index
-    let waeli = Func::wrap(&mut store, |mut caller: Caller<HostState>, input: i32| -> i32 {
+    // - Halts execution if no value exists at that index
+    let waeli = Func::wrap(&mut store, |mut caller: Caller<HostState>, input: i32| -> Result<i32, wasmi::Error> {
+        // Store the last input
+        caller.data_mut().last_input = input;
+        
         if input <= 0 {
-            return 0;
+            return Ok(0);
         }
         
         // Get the current call count and increment it
@@ -55,16 +64,17 @@ fn continuation(wat: &str, values: &[i32]) -> Result<i32, Box<dyn std::error::Er
         caller.data_mut().call_count += 1;
         
         // Check if we have a value at the current index
-        let (result, source) = if call_count < caller.data().values.len() {
-            (caller.data().values[call_count], "from array")
+        if call_count < caller.data().values.len() {
+            let result = caller.data().values[call_count];
+            println!("  Host function waeli({}) => {} (call #{}, from array)", input, result, call_count + 1);
+            Ok(result)
         } else {
-            // Fall back to random number if no value exists
-            let mut rng = rand::thread_rng();
-            (rng.gen_range(0..=input), "randomly generated")
-        };
-        
-        println!("  Host function waeli({}) => {} (call #{}, {})", input, result, call_count + 1, source);
-        result
+            // Halt execution instead of generating a random number
+            println!("  Host function waeli({}) => HALT (call #{}, no value in array)", input, call_count + 1);
+            caller.data_mut().execution_halted = true;
+            // Return a trap to halt execution
+            Err(wasmi::Error::new("Execution halted: no value in array for this call"))
+        }
     });
 
     // Register the host function in the linker
@@ -86,9 +96,71 @@ fn continuation(wat: &str, values: &[i32]) -> Result<i32, Box<dyn std::error::Er
     // Call the 'handle' function with input 10
     let input = 10;
     println!("  Initial acc = {}", input);
-    let result = handle.call(&mut store, input)?;
+    
+    // Call the handle function and check if execution was halted
+    let result = match handle.call(&mut store, input) {
+        Ok(result) => {
+            // Execution completed normally
+            (result, 0)
+        },
+        Err(_) => {
+            // Execution was halted by the waeli function
+            if store.data().execution_halted {
+                println!("  Execution halted by waeli function");
+                (-1, store.data().last_input)
+            } else {
+                // Some other error occurred
+                return Err("Unexpected error during execution".into());
+            }
+        }
+    };
     
     Ok(result)
+}
+
+/// Runs the WebAssembly module until completion by dynamically generating values
+/// for the 'waeli' host function as needed.
+///
+/// This function:
+/// 1. Starts with an empty array of values
+/// 2. Calls 'continuation' with the current array
+/// 3. If execution halts, generates a random value and adds it to the array
+/// 4. Repeats until execution completes normally
+///
+/// # Arguments
+///
+/// * `wat` - The WebAssembly Text format content as a string
+///
+/// # Returns
+///
+/// The final result of the WebAssembly module execution
+fn run(wat: &str) -> Result<i32, Box<dyn std::error::Error>> {
+    let mut values = Vec::new();
+    let mut iteration = 0;
+    
+    loop {
+        iteration += 1;
+        println!("\nIteration #{}", iteration);
+        println!("Current values array: {:?}", values);
+        
+        // Call continuation with the current values
+        let (result, waeli_input) = continuation(wat, &values)?;
+        
+        if result != -1 {
+            // Execution completed normally
+            println!("Execution completed with result: {}", result);
+            return Ok(result);
+        }
+        
+        // Execution was halted, generate a random value
+        println!("Execution halted with waeli_input: {}", waeli_input);
+        let mut rng = rand::thread_rng();
+        let random_value = rng.gen_range(0..=waeli_input);
+        println!("Generated random value: {} (in range [0, {}])", random_value, waeli_input);
+        
+        // Add the random value to the array for the next iteration
+        values.push(random_value);
+    }
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -96,15 +168,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Loading WebAssembly module...");
     let wat = std::fs::read_to_string("module.wat")?;
     
-    // Define some values for the waeli function to use
-    let values = [5]; // Only the first call will use this value, the second call will generate a random number
+    // Run the module until completion
+    println!("Running module until completion...");
+    let result = run(&wat)?;
     
-    // Call the continuation function with the WAT content and values
-    println!("Instantiating module and executing...");
-    let result = continuation(&wat, &values)?;
-    
-    // Display the result
-    println!("Final result = {}", result);
+    // Display the final result
+    println!("\nFinal result = {}", result);
 
     Ok(())
 }
