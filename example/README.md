@@ -8,7 +8,7 @@ This example demonstrates interleaving pure WASM computations and arbitrary non-
 
 This code halts WASM execution when a host function is called. At that point, the host Rust program can compute what was requested outside of any WASM execution.  Then the WASM execution can resume (in a sense; see below for discussion) with transparent access to that computed value as the result of the previously requested call.  This process repeats until the WASM terminates normally.
 
-The WASM itself has no knowledge of this special processing.  It's just normal code that calls a host function an when it feels like it an arbitrary number of times.
+The WASM itself has no knowledge of this special processing.  It's just normal code that calls a host function if and when it feels like it an arbitrary number of times.
 
 The point is automatic and transparent interleaving of pure WASM computations and arbitrary non-WASM (host) computations.  The pure WASM does no I/O and is otherwise fully deterministic (and even ZK-able). The non-WASM computations could (say) make calls to external services, which hopefully sign their `<request,response>` results.  The host can verify the signatures before resuming WASM execution.  The final result can include a trace that shows the incremental WASM results, interleaved host computations, and the final result.
 
