@@ -22,6 +22,8 @@ The example consists of:
 
 ## WAELI
 
+WAELI is like [WASI](https://wasi.dev/) except for EigenLayer.
+
 Currently WAELI (the Web Assembly EigenLayer Interface) is just int &rarr; int. It should probably be JSON &rarr; JSON, and that JSON input should probably look something like an OpenAI completion [tool call request](https://platform.openai.com/docs/guides/function-calling#handling-function-calls) -- not because we're doing LLM things but because it's generic.  Like a raw JSON event for an AWS Lambda handler but augmented with the name of the function.
 
 ## Handlers
