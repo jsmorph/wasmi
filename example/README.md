@@ -54,8 +54,8 @@ In Continuation Mode, the execution proceeds through multiple iterations:
 In Normal Mode, execution completes in a single iteration as you would normally expect:
 
 - The `waeli` host function always uses the Rust `waeli` function to generate random numbers
-- Execution never halts, and each requested `waeli` result is calculated immediately
-- This mode simulates the original behavior but with enhanced tracing
+- Execution never halts, and each requested `waeli` result is calculated on demand and synchronously
+
 
 ## Key Components
 
