@@ -12,6 +12,7 @@
 ;; - Call waeli(acc) again and check if result is even:
 ;;   - If even: acc += result
 ;;   - If odd: acc -= result
+;; - If acc is odd, make a final call to waeli(acc) and add the result to acc
 ;; - Return acc
 
 (module
@@ -54,6 +55,16 @@
       (else
         ;; Odd case: acc -= waeli_result
         (local.set $acc (i32.sub (local.get $acc) (local.get $waeli_result)))
+      )
+    )
+    
+    ;; Make a final call to waeli only if acc is odd
+    (if (i32.and (local.get $acc) (i32.const 1))
+      (then
+        ;; Acc is odd, call waeli(acc)
+        (local.set $waeli_result (call $waeli (local.get $acc)))
+        ;; Add the result to acc
+        (local.set $acc (i32.add (local.get $acc) (local.get $waeli_result)))
       )
     )
     
