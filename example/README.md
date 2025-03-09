@@ -34,19 +34,6 @@ Currently `handle` is really just int &rarr; int. It should probably be JSON &ra
 
 Yes, a WAELI request could be handled by a `handle`r. That's how composition works.
 
-### The Example WebAssembly Module
-
-[The](module.wat) example WebAssembly module exports a function named `handle` that:
-1. Initializes a local variable `acc` to be the integer input to `handle`
-2. Calls `waeli(acc)` and checks if the result is even:
-   - If even, adds the result to `acc`
-   - If odd, subtracts the result from `acc`
-3. Calls `waeli(acc)` again and checks if the result is even:
-   - If even, adds the result to `acc`
-   - If odd, subtracts the result from `acc`
-4. If `acc` is odd, makes a final call to `waeli(acc)` and adds the result to `acc`
-5. Returns the final value of `acc`
-
 ## Execution Modes
 
 This example supports two distinct execution modes:
@@ -106,6 +93,19 @@ The `run` function:
 - If execution halts, generates a random value and adds it to the array
 - Repeats until execution completes normally
 - Collects a trace of the execution
+
+## The Example WebAssembly Module
+
+[The](module.wat) example WebAssembly module exports a function named `handle` that:
+1. Initializes a local variable `acc` to be the integer input to `handle`
+2. Calls `waeli(acc)` and checks if the result is even:
+   - If even, adds the result to `acc`
+   - If odd, subtracts the result from `acc`
+3. Calls `waeli(acc)` again and checks if the result is even:
+   - If even, adds the result to `acc`
+   - If odd, subtracts the result from `acc`
+4. If `acc` is odd, makes a final call to `waeli(acc)` and adds the result to `acc`
+5. Returns the final value of `acc`
 
 ## Running the Example
 
