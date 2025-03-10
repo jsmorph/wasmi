@@ -1,0 +1,23 @@
+[package]
+name = "example3-zk"
+version = "0.1.0"
+edition = "2021"
+
+# Define a workspace to keep this project separate from the parent workspace
+[workspace]
+members = ["methods"]
+
+# Both a library and a binary
+[lib]
+path = "src/main.rs"
+
+[[bin]]
+name = "example3-zk"
+path = "src/main.rs"
+
+[dependencies]
+rand = "0.8"
+risc0-zkvm = { version = "1.2.5" }
+wasmi = "0.31"
+wat = "1.0"
+methods = { path = "methods" }
