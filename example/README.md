@@ -239,6 +239,11 @@ _Note: I tried to have cline+Sonnet implement this sort of thing.  That experien
 
 The current implementation prioritizes simplicity and clarity over performance, making it suitable for educational purposes and small-scale applications. For production systems with performance requirements, a resumable execution model would be preferable.
 
+#### Re "freeze/thaw"
+
+Wasmi has a primitve [freeze/thaw](https://docs.rs/wasmi/latest/wasmi/struct.ResumableInvocation.html) capability. This gear does _not_ support serialization, and it can't (as implemented) be used to restart WASM cleanly.  However, maybe this gear could be helpful to deal wit host function execution trouble like timeouts.
+
+
 ## References
 
 1. https://en.wikipedia.org/wiki/Continuation-passing_style

@@ -1,0 +1,11 @@
+[package]
+name = "wasmi-example"
+version = "0.1.0"
+edition = "2021"
+
+# Add an empty workspace table to keep this package out of the parent workspace
+[workspace]
+
+[dependencies]
+wasmi = { path = "../crates/wasmi" }
+rand = "0.8.5"
