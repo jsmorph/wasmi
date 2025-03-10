@@ -249,3 +249,4 @@ The current implementation prioritizes simplicity and clarity over performance, 
 1. https://docs.rs/serde-json-core/latest/serde_json_core/
 1. https://docs.rust-embedded.org/book/intro/no-std.html
 1. https://github.com/risc0/risc0/blob/main/examples/wasm/README.md
+1. https://component-model.bytecodealliance.org/design/why-component-model.html
