@@ -50,6 +50,7 @@ pub fn run_with_zk_verification(
         println!("\nIteration #{}", iteration);
         
         // Run the module in the zkVM
+        println!("Starting zkVM execution for iteration #{}...", iteration);
         let (result, waeli_input, receipt) = run_wat_in_zkvm(wat, initial_value, &host_function_results)?;
         
         // Add to the trace
@@ -83,6 +84,15 @@ pub fn run_with_zk_verification(
 
 /// Example of how to use the run_with_zk_verification function
 pub fn example_usage() -> Result<(), Box<dyn Error>> {
+    // Parse command line arguments
+    let args: Vec<String> = std::env::args().collect();
+    
+    // Check if we should skip proof generation
+    let skip_proof = args.iter().any(|arg| arg == "--fast" || arg == "-f");
+    if skip_proof {
+        println!("Running in fast mode (skipping proof generation)");
+    }
+    
     // Load the WebAssembly module from the WAT file
     println!("Loading WebAssembly module...");
     let wat = std::fs::read_to_string("../example3/module.wat")?;

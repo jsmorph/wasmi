@@ -50,7 +50,11 @@ pub fn run_wat_in_zkvm(
     let prover = default_prover();
 
     // Try to prove the execution
+    println!("Starting zkVM proof generation...");
+    let start_time = std::time::Instant::now();
     let result = prover.prove(env, WAT_EXECUTOR_ELF);
+    let elapsed = start_time.elapsed();
+    println!("zkVM proof generation completed in {:.2?}", elapsed);
     
     match result {
         Ok(session_info) => {
@@ -99,6 +103,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     if args.len() > 1 && args[1] == "extension" {
         println!("Running example3_extension example...");
         return example3_extension::example_usage();
+    }
+    
+    // Check if we should skip proof generation
+    let skip_proof = args.iter().any(|arg| arg == "--fast" || arg == "-f");
+    if skip_proof {
+        println!("Running in fast mode (skipping proof generation)");
     }
     
     // Get the initial value from command line or use default (10)
